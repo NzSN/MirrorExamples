@@ -1,0 +1,49 @@
+load("@counter_npm//:defs.bzl", "npm_link_all_packages")
+load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config", "ts_project")
+
+npm_link_all_packages(name = "node_modules")
+
+npm_link_package(
+    name = "node_modules/mirrorecma",
+    src = "@mirrorecma//:lib",
+    package = "mirrorecma",
+)
+
+ts_config(
+    name = "tsconfig",
+    src = "tsconfig.bazel.json",
+    deps = [
+        ":node_modules/mirrorecma",
+        ":node_modules/@types/node",
+    ],
+)
+
+ts_project(
+    name = "counter",
+    srcs = ["src/counter.ts"],
+    tsconfig = ":tsconfig",
+    transpiler = "tsc",
+    declaration = True,
+    data = ["package.json"],
+    visibility = ["//visibility:public"],
+)
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+sh_test(
+    name = "check",
+    srcs = ["scripts/check"],
+    args = ["$(execpath @modelmirros//app:ModelMirrors)"],
+    data = [
+        "@modelmirros//app:ModelMirrors",
+        ":counter",
+        "test/counter.test.ts",
+        "specs/Counter.tla",
+        "package.json",
+        "jest.config.cjs",
+        "tsconfig.json",
+    ],
+    tags = ["local", "no-sandbox"],
+    env = {"NODE_OPTIONS": "--experimental-vm-modules"},
+)
