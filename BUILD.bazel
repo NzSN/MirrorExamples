@@ -1,6 +1,8 @@
 load("@counter_npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_rules_js//npm:defs.bzl", "npm_link_package")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_config", "ts_project")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("@aspect_rules_js//js:defs.bzl", "js_test")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -8,6 +10,13 @@ npm_link_package(
     name = "node_modules/mirrorecma",
     src = "@mirrorecma//:lib",
     package = "mirrorecma",
+)
+
+genrule(
+    name = "package_json",
+    srcs = ["package.bazel.json"],
+    outs = ["package.json"],
+    cmd = "cp $(execpath package.bazel.json) $@",
 )
 
 ts_config(
@@ -20,16 +29,48 @@ ts_config(
 )
 
 ts_project(
-    name = "counter",
-    srcs = ["src/counter.ts"],
+    name = "lib_src",
+    srcs = glob(["src/**/*.ts"]),
     tsconfig = ":tsconfig",
     transpiler = "tsc",
     declaration = True,
-    data = ["package.json"],
+    data = [":package_json"],
     visibility = ["//visibility:public"],
 )
 
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+ts_project(
+    name = "rbt_test",
+    srcs = ["test/rbt.test.ts"],
+    tsconfig = ":tsconfig",
+    transpiler = "tsc",
+    declaration = True,
+    deps = [
+        ":lib_src",
+        ":node_modules/@types/jest",
+        ":node_modules/@types/node",
+    ],
+)
+
+sh_test(
+    name = "rbt_e2e_test",
+    srcs = ["scripts/run_rbt_test"],
+    args = ["$(execpath @modelmirrors//app:ModelMirrors)"],
+    data = [
+        ":lib_src",
+        ":rbt_test",
+        "@modelmirrors//app:ModelMirrors",
+        "specs/RBT/RBT.tla",
+        "test/rbt.test.ts",
+        "src/rbt.ts",
+        "src/counter.ts",
+        ":node_modules/mirrorecma",
+        ":package_json",
+        "jest.config.cjs",
+        "tsconfig.json",
+    ] + glob(["specs/RBT/traces/*.itf.json"], allow_empty = True),
+    tags = ["local", "no-sandbox"],
+    env = {"NODE_OPTIONS": "--experimental-vm-modules"},
+)
 
 sh_test(
     name = "check",
@@ -37,9 +78,9 @@ sh_test(
     args = ["$(execpath @modelmirrors//app:ModelMirrors)"],
     data = [
         "@modelmirrors//app:ModelMirrors",
-        ":counter",
+        ":lib_src",
         "test/counter.test.ts",
-        "specs/Counter.tla",
+        "specs/Counter/Counter.tla",
         "package.json",
         "jest.config.cjs",
         "tsconfig.json",

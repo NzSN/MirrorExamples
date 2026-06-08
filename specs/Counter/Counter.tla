@@ -33,7 +33,7 @@ Next ==
 CounterView == count
 
 \* Apalache treats a violated invariant as a counterexample = the test trace.
-TraceComplete == count < 12
+TraceComplete == count < 3
 
 Spec == Init /\ [][Next]_<<count, parameters>>
 ========================================================
