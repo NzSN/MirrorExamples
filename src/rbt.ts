@@ -2,7 +2,6 @@ import type { State } from "mirrorecma";
 import { asInt, getParam } from "mirrorecma";
 
 const NIL_ID = 0;
-const MAX_NODES = 5;
 
 type Color = "R" | "B";
 
@@ -24,16 +23,22 @@ export class RedBlackTree {
   stepCount: number = 0;
 
   constructor() {
-    for (let id = NIL_ID; id <= MAX_NODES; id++) {
-      this.nodes.set(id, nilRec());
-    }
+    this.nodes.set(NIL_ID, nilRec());
   }
 
   private findUnused(): number {
-    for (let id = 1; id <= MAX_NODES; id++) {
-      if (this.nodes.get(id)!.key === 0) return id;
+    let best: number | null = null;
+    let maxId = NIL_ID;
+    for (const [id, n] of this.nodes) {
+      if (id > maxId) maxId = id;
+      if (id > NIL_ID && n.key === 0) {
+        if (best === null || id < best) best = id;
+      }
     }
-    throw new Error("no unused node available");
+    if (best !== null) return best;
+    const newId = maxId + 1;
+    this.nodes.set(newId, nilRec());
+    return newId;
   }
 
   private bstParent(key: number): number {
@@ -335,12 +340,17 @@ export class RedBlackTree {
   }
 }
 
+const TRACE_MAX_NODES = 5;
+
 export class RedBlackTreeComputer {
   private tree = new RedBlackTree();
 
   compute(action: string, params: State, prevState: State): State {
     if (action === "Init" || prevState.root === undefined) {
       this.tree = new RedBlackTree();
+      for (let id = 1; id <= TRACE_MAX_NODES; id++) {
+        this.tree.nodes.set(id, nilRec());
+      }
       return this.tree.toState();
     }
 
