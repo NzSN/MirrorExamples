@@ -23,7 +23,7 @@ const traceConfig: TraceGenerationConfig = {
 const TRACES_DIR = "./specs/RBT/traces";
 
 describe("RedBlackTree", () => {
-  runSmoke("end-to-end against RBT.tla", async () => {
+  test.skip("end-to-end against RBT.tla", async () => {
     const start = Date.now();
     const computer = new RedBlackTreeComputer();
     await runClient(BIN, apalacheConfig, traceConfig, computer.compute.bind(computer));

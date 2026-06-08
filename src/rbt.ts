@@ -2,6 +2,7 @@ import type { State } from "mirrorecma";
 import { asInt, getParam } from "mirrorecma";
 
 const NIL_ID = 0;
+const MAX_NODES = 5;
 
 type Color = "R" | "B";
 
@@ -20,18 +21,19 @@ function nilRec(): NodeRec {
 export class RedBlackTree {
   nodes: Map<number, NodeRec> = new Map();
   root: number = NIL_ID;
+  stepCount: number = 0;
 
   constructor() {
-    this.nodes.set(NIL_ID, nilRec());
+    for (let id = NIL_ID; id <= MAX_NODES; id++) {
+      this.nodes.set(id, nilRec());
+    }
   }
 
   private findUnused(): number {
-    let id = 1;
-    while (true) {
-      const n = this.nodes.get(id);
-      if (!n || n.key === 0) return id;
-      id++;
+    for (let id = 1; id <= MAX_NODES; id++) {
+      if (this.nodes.get(id)!.key === 0) return id;
     }
+    throw new Error("no unused node available");
   }
 
   private bstParent(key: number): number {
@@ -185,6 +187,7 @@ export class RedBlackTree {
 
     this.fixup(newId);
     this.recomputeBH();
+    this.stepCount++;
   }
 
   private deleteFixup(x: number, px: number, xLeft: boolean): void {
@@ -305,7 +308,9 @@ export class RedBlackTree {
       this.deleteFixup(fx, fxPx, yIsLeft);
     }
 
+    this.nodes.get(this.root)!.color = "B";
     this.recomputeBH();
+    this.stepCount++;
   }
 
   toState(): State {
@@ -325,6 +330,7 @@ export class RedBlackTree {
     return {
       nodes: { tag: "record", val: nodesRec },
       root: { tag: "int", val: BigInt(this.root) },
+      step_count: { tag: "int", val: BigInt(this.stepCount) },
     };
   }
 }
