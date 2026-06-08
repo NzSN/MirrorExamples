@@ -1,5 +1,4 @@
 import type { State } from "mirrorecma";
-import { asInt, getParam } from "mirrorecma";
 
 const NIL_ID = 0;
 
@@ -177,8 +176,12 @@ export class RedBlackTree {
     if (this.bstFind(key) !== NIL_ID) return;
 
     const newId = this.findUnused();
-    const newNode: NodeRec = { key, color: "R", left: NIL_ID, right: NIL_ID, bh: 0 };
-    this.nodes.set(newId, newNode);
+    const n = this.nodes.get(newId)!;
+    n.key = key;
+    n.color = "R";
+    n.left = NIL_ID;
+    n.right = NIL_ID;
+    n.bh = 0;
 
     const parent = this.bstParent(key);
 
@@ -198,7 +201,7 @@ export class RedBlackTree {
   private deleteFixup(x: number, px: number, xLeft: boolean): void {
     let p = px;
     let isLeft = xLeft;
-    for (let iter = 0; iter < 10; iter++) {
+    while (true) {
       if (x === this.root) break;
       const par = x !== NIL_ID ? this.pof(x) : p;
       if (par === NIL_ID) break;
@@ -215,6 +218,7 @@ export class RedBlackTree {
       }
 
       const w = isLeft ? this.nodes.get(par)!.right : this.nodes.get(par)!.left;
+
       if (w === NIL_ID) break;
 
       const wN = this.nodes.get(w)!;
@@ -249,9 +253,10 @@ export class RedBlackTree {
           this.nodes.get(nearC)!.color = "B";
           wN.color = "R";
           this.rotRight(w);
+          const parColor = this.nodes.get(par)!.color;
           const w2 = this.nodes.get(par)!.right;
           const w2R = this.nodes.get(w2)!.right;
-          this.nodes.get(w2)!.color = this.nodes.get(par)!.color;
+          this.nodes.get(w2)!.color = parColor;
           this.nodes.get(par)!.color = "B";
           if (w2R !== NIL_ID) this.nodes.get(w2R)!.color = "B";
           this.rotLeft(par);
@@ -268,9 +273,10 @@ export class RedBlackTree {
           this.nodes.get(nearC)!.color = "B";
           wN.color = "R";
           this.rotLeft(w);
+          const parColor = this.nodes.get(par)!.color;
           const w2 = this.nodes.get(par)!.left;
           const w2L = this.nodes.get(w2)!.left;
-          this.nodes.get(w2)!.color = this.nodes.get(par)!.color;
+          this.nodes.get(w2)!.color = parColor;
           this.nodes.get(par)!.color = "B";
           if (w2L !== NIL_ID) this.nodes.get(w2L)!.color = "B";
           this.rotRight(par);
@@ -337,33 +343,5 @@ export class RedBlackTree {
       root: { tag: "int", val: BigInt(this.root) },
       step_count: { tag: "int", val: BigInt(this.stepCount) },
     };
-  }
-}
-
-const TRACE_MAX_NODES = 5;
-
-export class RedBlackTreeComputer {
-  private tree = new RedBlackTree();
-
-  compute(action: string, params: State, prevState: State): State {
-    if (action === "Init" || prevState.root === undefined) {
-      this.tree = new RedBlackTree();
-      for (let id = 1; id <= TRACE_MAX_NODES; id++) {
-        this.tree.nodes.set(id, nilRec());
-      }
-      return this.tree.toState();
-    }
-
-    const rec = getParam(params, "parameters");
-    const keyParam = rec ? asInt(rec.keyParam!) : null;
-    const key = keyParam ? Number(keyParam) : 0;
-
-    if (action === "insert") {
-      this.tree.insert(key);
-    } else if (action === "delete") {
-      this.tree.delete(key);
-    }
-
-    return this.tree.toState();
   }
 }

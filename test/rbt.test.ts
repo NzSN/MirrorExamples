@@ -1,5 +1,5 @@
-import { runClient, runClientWithTraces, runClientGenTraces, type ApalacheConfig, type TraceGenerationConfig } from "mirrorecma";
-import { RedBlackTreeComputer } from "../src/rbt.js";
+import { runClient, runClientWithTraces, runClientGenTraces, type ApalacheConfig, type TraceGenerationConfig, type State, asInt, getParam } from "mirrorecma";
+import { RedBlackTree } from "../src/rbt.js";
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -21,6 +21,35 @@ const traceConfig: TraceGenerationConfig = {
 };
 
 const TRACES_DIR = "./specs/RBT/traces";
+
+const NIL_ID = 0;
+const TRACE_MAX_NODES = 5;
+
+class RedBlackTreeComputer {
+  private tree = new RedBlackTree();
+
+  compute(action: string, params: State, prevState: State): State {
+    if (action === "init" || prevState.root === undefined) {
+      this.tree = new RedBlackTree();
+      for (let id = 1; id <= TRACE_MAX_NODES; id++) {
+        this.tree.nodes.set(id, { key: 0, color: "B", left: NIL_ID, right: NIL_ID, bh: 0 });
+      }
+      return this.tree.toState();
+    }
+
+    const rec = getParam(params, "parameters");
+    const keyParam = rec ? asInt(rec.keyParam!) : null;
+    const key = keyParam ? Number(keyParam) : 0;
+
+    if (action === "insert") {
+      this.tree.insert(key);
+    } else if (action === "delete") {
+      this.tree.delete(key);
+    }
+
+    return this.tree.toState();
+  }
+}
 
 describe("RedBlackTree", () => {
   test.skip("end-to-end against RBT.tla", async () => {
