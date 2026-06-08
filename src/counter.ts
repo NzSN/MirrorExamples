@@ -9,7 +9,7 @@ export class Counter {
   }
 
   tick(stride: bigint): void {
-    this.count += stride;
+      this.count += stride;
   }
 
   toState(): State {
@@ -23,7 +23,7 @@ export class CounterComputer {
   private counter = new Counter();
 
   compute(action: string, params: State, prevState: State): State {
-    if (action === "Init" || !prevState.count) {
+    if (action === "Init" || prevState.count === undefined) {
       this.counter = new Counter();
       return this.counter.toState();
     }
