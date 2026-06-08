@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ -n "${1:-}" ] || { echo "Usage: $0 <binary-path>" >&2; exit 1; }
+
+MIRROR_BIN=""
+for candidate in "$1" "${TEST_SRCDIR}/modelmirrors+/app/ModelMirrors"; do
+  if MIRROR_BIN="$(realpath "$candidate" 2>/dev/null)"; then
+    break
+  fi
+done
+[ -n "$MIRROR_BIN" ] || { echo "Could not find ModelMirrors binary" >&2; exit 1; }
+
+export PATH="/home/nzsn/.local/bin/apalache/bin:$PATH"
+
+cd "$(dirname "$(realpath "${TEST_SRCDIR}/_main/jest.config.cjs")")"
+
+MIRROR_SRC="$(realpath "bazel-bin/node_modules/mirrorecma")"
+[ -d node_modules/mirrorecma ] && chmod -R u+w node_modules/mirrorecma
+rm -rf node_modules/mirrorecma
+cp -rL "$MIRROR_SRC" node_modules/mirrorecma
+chmod -R u+w node_modules/mirrorecma
+
+cat > node_modules/mirrorecma/index.mjs <<'ESM'
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const cjs = require("./src/index.js");
+export const {
+  runClient,
+  runClientGenTraces,
+  runClientWithTraces,
+  presetClient,
+  encodeClientMessage,
+  encodeState,
+  decodeMirrorMessage,
+  asInt,
+  asStr,
+  asRecord,
+  getParam,
+  getParamInt,
+  spawnMirror,
+} = cjs;
+ESM
+
+cat > node_modules/mirrorecma/package.json <<'PKGJSON'
+{
+  "name": "mirrorecma",
+  "version": "1.0.0",
+  "description": "TypeScript client for ModelMirros protocol",
+  "license": "ISC",
+  "type": "commonjs",
+  "main": "index.mjs",
+  "types": "src/index.d.ts"
+}
+PKGJSON
+
+export MIRROR_BIN
+NODE_OPTIONS="--experimental-vm-modules" npx jest test/rbt.test.ts --no-coverage --passWithNoTests

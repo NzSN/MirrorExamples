@@ -1,0 +1,6 @@
+.agent-shell/
+MODULE.bazel.lock
+_apalache-out/
+bazel-*
+node_modules/
+*.bak
