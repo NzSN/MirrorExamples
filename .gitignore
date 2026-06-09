@@ -4,3 +4,4 @@ _apalache-out/
 bazel-*
 node_modules/
 *.bak
+**/states/
