@@ -344,7 +344,7 @@ Delete(key) ==
                      ELSE IF yIsLeft
                           THEN [n0 EXCEPT ![yOldParent].left = x]
                           ELSE [n0 EXCEPT ![yOldParent].right = x]
-               n1clean == [n1 EXCEPT ![y].key = 0]
+               n1clean == [n1 EXCEPT ![y].key = 0, ![y].left = nil, ![y].right = nil]
                r1 == IF y = root THEN x ELSE root
                delFix == IF yColor = "B"
                          THEN LET fx == IF x = nil
@@ -373,4 +373,5 @@ Next ==
 
 \* Bounded model checking: stop after MAX_STEPS steps.
 TraceComplete == step_count < MAX_STEPS
+SPEC == Init /\ [][Next]_<<nodes,root,action_taken,step_count,parameters>>
 ==========================================================
