@@ -56,6 +56,7 @@ BHInv ==
 Inv == NilInv /\ RootBlack /\ NoDoubleRed /\ BSTInv /\ BHInv
 
 TreeView == <<nodes, root>>
+View == TreeView
 
 \* ---------------------------------------------------------------------------
 \* Deterministic RB-tree helpers (module-level for type annotation support).
