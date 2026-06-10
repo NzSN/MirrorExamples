@@ -21,7 +21,8 @@ const traceConfig: TraceGenerationConfig = {
   view: "TreeView",
 };
 
-const TRACES_DIR = "./specs/RBT/traces";
+const TRACES_DIR_MAX_STEP_4 = "./specs/RBT/traces_max_step_4";
+const TRACES_DIR_MAX_STEP_6 = "./specs/RBT/traces_max_step_6";
 
 const newRbtComputer = () => new Driver(() => {
   const tree = new RedBlackTree();
@@ -29,6 +30,8 @@ const newRbtComputer = () => new Driver(() => {
 });
 
 describe("RedBlackTree", () => {
+  const USED_TRACES = TRACES_DIR_MAX_STEP_6;
+
   // Cost very very much of time, LLM should just used
   // mbt below of current.
   test.skip("end-to-end against RBT.tla", async () => {
@@ -44,18 +47,18 @@ describe("RedBlackTree", () => {
     const driver = newRbtComputer();
 
     let traceFiles: string[] = [];
-    if (existsSync(TRACES_DIR)) {
-      traceFiles = readdirSync(TRACES_DIR)
+    if (existsSync(USED_TRACES)) {
+      traceFiles = readdirSync(USED_TRACES)
         .filter(f => f.endsWith(".itf.json"))
-        .map(f => join(TRACES_DIR, f));
+        .map(f => join(USED_TRACES, f));
     }
 
     if (traceFiles.length === 0) {
-      if (!existsSync(TRACES_DIR)) mkdirSync(TRACES_DIR, { recursive: true });
-      await runClientGenTraces(BIN, apalacheConfig, TRACES_DIR, traceConfig);
-      traceFiles = readdirSync(TRACES_DIR)
+      if (!existsSync(USED_TRACES)) mkdirSync(USED_TRACES, { recursive: true });
+      await runClientGenTraces(BIN, apalacheConfig, USED_TRACES, traceConfig);
+      traceFiles = readdirSync(USED_TRACES)
         .filter(f => f.endsWith(".itf.json"))
-        .map(f => join(TRACES_DIR, f));
+        .map(f => join(USED_TRACES, f));
     }
 
     await runClientWithTraces(BIN, apalacheConfig, traceFiles, driver.compute.bind(driver));

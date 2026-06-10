@@ -4,9 +4,10 @@ module(
 )
 
 bazel_dep(name = "mirrorecma", version = "1.0.0")
-local_path_override(
+git_override(
     module_name = "mirrorecma",
-    path = "../MirrorECMA",
+    remote = "https://github.com/NzSN/mirrorecma",
+    commit = "bc58597a3a126239cbb50bd217d087bad5e1f08a",
 )
 
 bazel_dep(name = "modelmirrors", version = "0.1.0.0")
