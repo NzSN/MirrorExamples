@@ -13,7 +13,7 @@ bazel_dep(name = "modelmirrors", version = "0.1.0.0")
 git_override(
     module_name = "modelmirrors",
     remote = "https://github.com/NzSN/ModelMirrors",
-    commit = "1636dcfd5778a0c24fd8afe2ab8d701213f0e57e",
+    commit = "48d0e527af5f0682c1a414f04b08b9c3ffceff72",
 )
 
 bazel_dep(name = "rules_shell", version = "0.6.1")
