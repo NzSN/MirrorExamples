@@ -1,6 +1,6 @@
-import type { State, StateComputer } from "mirrorecma";
+import type { State } from "mirrorecma";
 import { asInt, getParam } from "mirrorecma";
-import { StateDriver, Drivable } from "./driver";
+import { Drivable } from "./driver";
 
 export class Counter implements Drivable {
   count: bigint;
@@ -10,29 +10,18 @@ export class Counter implements Drivable {
   }
 
   tick(stride: bigint): void {
-      this.count += stride;
+    this.count += stride;
+  }
+
+  step(action: string, params: State): void {
+    const rec = getParam(params, "parameters");
+    const stride = rec ? asInt(rec.stride!) ?? 0n : 0n;
+    this.tick(stride);
   }
 
   toState(): State {
     return {
       count: { tag: "int", val: this.count },
     };
-  }
-}
-
-export class CounterComputer extends StateDriver {
-  private counter = new Counter();
-
-  compute(action: string, params: State, prevState: State): State {
-    if (action === "Init" || prevState.count === undefined) {
-      this.counter = new Counter();
-      return this.counter.toState();
-    }
-
-    const rec = getParam(params, "parameters");
-    const stride = rec ? asInt(rec.stride!) ?? 0n : 0n;
-
-    this.counter.tick(stride);
-    return this.counter.toState();
   }
 }

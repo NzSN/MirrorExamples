@@ -1,5 +1,6 @@
 import { runClient, runClientWithTraces, runClientGenTraces, type ApalacheConfig, type TraceGenerationConfig } from "mirrorecma";
-import { CounterComputer } from "../src/counter.js";
+import { Counter } from "../src/counter.js";
+import { Driver } from "../src/driver.js";
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -23,18 +24,20 @@ const traceConfig: TraceGenerationConfig = {
 
 const TRACES_DIR = "./traces";
 
+const newCounterComputer = () => new Driver(() => new Counter());
+
 describe("Counter", () => {
   runSmoke("end-to-end against Counter.tla", async () => {
     const start = Date.now();
-    const computer = new CounterComputer();
-    await runClient(BIN, apalacheConfig, traceConfig, computer.compute.bind(computer));
+    const driver = newCounterComputer();
+    await runClient(BIN, apalacheConfig, traceConfig, driver.compute.bind(driver));
     const elapsed = Date.now() - start;
     expect(elapsed).toBeLessThan(60000);
   }, 120000);
 
   runSmoke("model-based testing with traces", async () => {
     const start = Date.now();
-    const computer = new CounterComputer();
+    const driver = newCounterComputer();
 
     let traceFiles: string[] = [];
     if (existsSync(TRACES_DIR)) {
@@ -51,7 +54,7 @@ describe("Counter", () => {
         .map(f => join(TRACES_DIR, f));
     }
 
-    await runClientWithTraces(BIN, apalacheConfig, traceFiles, computer.compute.bind(computer));
+    await runClientWithTraces(BIN, apalacheConfig, traceFiles, driver.compute.bind(driver));
     const elapsed = Date.now() - start;
     expect(elapsed).toBeLessThan(60000);
   }, 120000);

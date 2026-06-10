@@ -1,8 +1,8 @@
 import { runClient, runClientWithTraces, runClientGenTraces, type ApalacheConfig, type TraceGenerationConfig, type State, asInt, getParam } from "mirrorecma";
 import { RedBlackTree } from "../src/rbt.js";
+import { Driver } from "../src/driver.js";
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { StateDriver } from "../src/driver.js";
 
 const BIN = process.env.MIRROR_BIN ?? "/home/nzsn/Repos/ModelMirros/dist-newstyle/build/x86_64-linux/ghc-9.14.1/ModelMirrors-0.1.0.0/x/ModelMirrors/build/ModelMirrors/ModelMirrors";
 const SPEC = "./specs/RBT/RBT.tla";
@@ -23,47 +23,25 @@ const traceConfig: TraceGenerationConfig = {
 
 const TRACES_DIR = "./specs/RBT/traces";
 
-const NIL_ID = 0;
-const TRACE_MAX_NODES = 5;
-
-class RedBlackTreeComputer extends StateDriver {
-  private tree = new RedBlackTree();
-
-  compute(action: string, params: State, prevState: State): State {
-    if (action === "init" || prevState.root === undefined) {
-      this.tree = new RedBlackTree();
-      for (let id = 1; id <= TRACE_MAX_NODES; id++) {
-        this.tree.nodes.set(id, { key: 0, color: "B", left: NIL_ID, right: NIL_ID, bh: 0 });
-      }
-      return this.tree.toState();
-    }
-
-    const rec = getParam(params, "parameters");
-    const keyParam = rec ? asInt(rec.keyParam!) : null;
-    const key = keyParam ? Number(keyParam) : 0;
-
-    if (action === "insert") {
-      this.tree.insert(key);
-    } else if (action === "delete") {
-      this.tree.delete(key);
-    }
-
-    return this.tree.toState();
-  }
-}
+const newRbtComputer = () => new Driver(() => {
+  const tree = new RedBlackTree();
+  return tree;
+});
 
 describe("RedBlackTree", () => {
+  // Cost very very much of time, LLM should just used
+  // mbt below of current.
   test.skip("end-to-end against RBT.tla", async () => {
     const start = Date.now();
-    const computer = new RedBlackTreeComputer();
-    await runClient(BIN, apalacheConfig, traceConfig, computer.compute.bind(computer));
+    const driver = newRbtComputer();
+    await runClient(BIN, apalacheConfig, traceConfig, driver.compute.bind(driver));
     const elapsed = Date.now() - start;
     expect(elapsed).toBeLessThan(60000);
   }, 120000);
 
   runSmoke("model-based testing with traces", async () => {
     const start = Date.now();
-    const computer = new RedBlackTreeComputer();
+    const driver = newRbtComputer();
 
     let traceFiles: string[] = [];
     if (existsSync(TRACES_DIR)) {
@@ -80,7 +58,7 @@ describe("RedBlackTree", () => {
         .map(f => join(TRACES_DIR, f));
     }
 
-    await runClientWithTraces(BIN, apalacheConfig, traceFiles, computer.compute.bind(computer));
+    await runClientWithTraces(BIN, apalacheConfig, traceFiles, driver.compute.bind(driver));
     const elapsed = Date.now() - start;
     expect(elapsed).toBeLessThan(60000);
   }, 120000);
