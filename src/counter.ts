@@ -9,6 +9,11 @@ export class Counter implements Drivable {
     this.count = 0n;
   }
 
+  init(params: State): State {
+    this.count = 0n;
+    return this.toState();
+  }
+
   tick(stride: bigint): void {
     this.count += stride;
   }
