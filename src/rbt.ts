@@ -1,4 +1,5 @@
 import type { State } from "mirrorecma";
+import { Drivable } from "./driver";
 
 const NIL_ID = 0;
 
@@ -16,7 +17,7 @@ function nilRec(): NodeRec {
   return { key: 0, color: "B", left: NIL_ID, right: NIL_ID, bh: 0 };
 }
 
-export class RedBlackTree {
+export class RedBlackTree implements Drivable {
   nodes: Map<number, NodeRec> = new Map();
   root: number = NIL_ID;
   stepCount: number = 0;

@@ -2,6 +2,7 @@ import { runClient, runClientWithTraces, runClientGenTraces, type ApalacheConfig
 import { RedBlackTree } from "../src/rbt.js";
 import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { StateDriver } from "../src/driver.js";
 
 const BIN = process.env.MIRROR_BIN ?? "/home/nzsn/Repos/ModelMirros/dist-newstyle/build/x86_64-linux/ghc-9.14.1/ModelMirrors-0.1.0.0/x/ModelMirrors/build/ModelMirrors/ModelMirrors";
 const SPEC = "./specs/RBT/RBT.tla";
@@ -25,7 +26,7 @@ const TRACES_DIR = "./specs/RBT/traces";
 const NIL_ID = 0;
 const TRACE_MAX_NODES = 5;
 
-class RedBlackTreeComputer {
+class RedBlackTreeComputer extends StateDriver {
   private tree = new RedBlackTree();
 
   compute(action: string, params: State, prevState: State): State {

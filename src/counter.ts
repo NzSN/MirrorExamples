@@ -1,7 +1,8 @@
 import type { State, StateComputer } from "mirrorecma";
 import { asInt, getParam } from "mirrorecma";
+import { StateDriver, Drivable } from "./driver";
 
-export class Counter {
+export class Counter implements Drivable {
   count: bigint;
 
   constructor() {
@@ -19,7 +20,7 @@ export class Counter {
   }
 }
 
-export class CounterComputer {
+export class CounterComputer extends StateDriver {
   private counter = new Counter();
 
   compute(action: string, params: State, prevState: State): State {
