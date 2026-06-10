@@ -1,6 +1,6 @@
 import type { State } from "mirrorecma";
 import { asInt, getParam } from "mirrorecma";
-import { Drivable } from "./driver";
+import { Drivable } from "./driver.js";
 
 export class Counter implements Drivable {
   count: bigint;

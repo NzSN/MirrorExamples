@@ -1,407 +1,491 @@
 import type { State, Value } from "mirrorecma";
-import { Drivable } from "./driver";
 import { asInt, getParam } from "mirrorecma";
+import { Drivable } from "./driver.js";
 
-const NIL = 0;
+const NIL = 0n;
+const MAX_ID = 5n;
 
-interface RBNode {
-  key: number;
+interface RbtNode {
+  key: bigint;
   color: "R" | "B";
-  left: number;
-  right: number;
-  bh: number;
+  left: bigint;
+  right: bigint;
+  bh: bigint;
 }
 
-function emptyNode(): RBNode {
-  return { key: 0, color: "B", left: NIL, right: NIL, bh: 0 };
+function nilNode(): RbtNode {
+  return { key: 0n, color: "B", left: NIL, right: NIL, bh: 0n };
+}
+
+function intVal(n: bigint): Value {
+  return { tag: "int", val: n };
+}
+
+function strVal(s: string): Value {
+  return { tag: "str", val: s };
+}
+
+function nodeVal(node: RbtNode): Value {
+  return {
+    tag: "record",
+    val: {
+      bh: intVal(node.bh),
+      color: strVal(node.color),
+      key: intVal(node.key),
+      left: intVal(node.left),
+      right: intVal(node.right),
+    },
+  };
 }
 
 export class RedBlackTree implements Drivable {
-  private nodes: RBNode[];
-  private root_: number;
-  private stepCount: number;
+  private nodes: Map<bigint, RbtNode>;
+  private root: bigint;
+  private action: string;
+  private stepCount: bigint;
+  private keyParam: bigint;
 
   constructor() {
-    this.nodes = [emptyNode()];
-    this.root_ = NIL;
-    this.stepCount = 0;
+    this.nodes = new Map();
+    this.root = NIL;
+    this.action = "init";
+    this.stepCount = 0n;
+    this.keyParam = 0n;
   }
 
-  init(params: State): State {
-    const nodesRec = params.nodes;
-    let maxId = 0;
-    if (nodesRec && nodesRec.tag === "record") {
-      for (const k of Object.keys(nodesRec.val)) {
-        const id = Number(k);
-        if (id > maxId) maxId = id;
-      }
+  private resetNodes(): void {
+    this.nodes.clear();
+    for (let i = 0n; i <= MAX_ID; i++) {
+      this.nodes.set(i, nilNode());
     }
-    this.nodes = [];
-    for (let i = 0; i <= maxId; i++) {
-      this.nodes[i] = emptyNode();
+  }
+
+  toState(): State {
+    const pairs: Value[] = [];
+    for (let i = 0n; i <= MAX_ID; i++) {
+      const node = this.nodes.get(i) ?? nilNode();
+      pairs.push({
+        tag: "set",
+        val: [intVal(i), nodeVal(node)],
+      });
     }
-    this.root_ = NIL;
-    this.stepCount = 0;
+    return {
+      nodes: {
+        tag: "record",
+        val: {
+          "#map": {
+            tag: "set",
+            val: pairs,
+          },
+        },
+      },
+      root: intVal(this.root),
+      action_taken: strVal(this.action),
+      step_count: intVal(this.stepCount),
+      parameters: {
+        tag: "record",
+        val: {
+          keyParam: intVal(this.keyParam),
+        },
+      },
+    };
+  }
+
+  init(_params: State): State {
+    this.resetNodes();
+    this.root = NIL;
+    this.action = "init";
+    this.stepCount = 0n;
+    this.keyParam = 0n;
     return this.toState();
   }
 
-  private findUnused(): number {
-    for (let i = 1; i < this.nodes.length; i++) {
-      if (this.nodes[i] && this.nodes[i].key === 0) return i;
+  step(action: string, params: State): void {
+    const keyRec = getParam(params, "parameters");
+    const key = keyRec?.keyParam ? asInt(keyRec.keyParam) ?? 0n : 0n;
+    this.keyParam = key;
+
+    if (action === "Insert" || action === "insert") {
+      this.action = "insert";
+      this.insert(key);
+    } else if (action === "Delete" || action === "delete") {
+      this.action = "delete";
+      this.delete(key);
     }
-    const id = this.nodes.length;
-    this.nodes.push(emptyNode());
-    return id;
   }
 
-  private parentOf(id: number): number {
-    if (id === NIL || id === this.root_) return NIL;
-    for (let p = 0; p < this.nodes.length; p++) {
-      const n = this.nodes[p];
-      if (n && n.key !== 0 && (n.left === id || n.right === id)) {
-        return p;
+  private findUnused(): bigint {
+    let best = NIL;
+    for (let i = 1n; i <= MAX_ID; i++) {
+      const node = this.nodes.get(i);
+      if (node && node.key === 0n) {
+        best = i;
+        break;
+      }
+    }
+    return best;
+  }
+
+  private parentOf(id: bigint): bigint {
+    if (id === this.root) return NIL;
+    for (const [pId, pNode] of this.nodes) {
+      if (pNode.left === id || pNode.right === id) return pId;
+    }
+    return NIL;
+  }
+
+  private bstFind(key: bigint): bigint {
+    let cur = this.root;
+    while (cur !== NIL) {
+      const node = this.nodes.get(cur);
+      if (!node) return NIL;
+      if (node.key === key) return cur;
+      if (key < node.key) {
+        cur = node.left;
+      } else {
+        cur = node.right;
       }
     }
     return NIL;
   }
 
-  private bstFind(key: number): number {
-    let cur = this.root_;
-    while (cur !== NIL) {
-      if (this.nodes[cur].key === key) return cur;
-      cur = key < this.nodes[cur].key
-        ? this.nodes[cur].left
-        : this.nodes[cur].right;
-    }
-    return NIL;
-  }
-
-  private bstParent(key: number): number {
-    let cur = this.root_;
+  private successor(id: bigint): bigint {
+    const node = this.nodes.get(id);
+    if (!node) return NIL;
+    let cur = node.right;
     if (cur === NIL) return NIL;
     while (true) {
-      if (key < this.nodes[cur].key) {
-        if (this.nodes[cur].left === NIL) return cur;
-        cur = this.nodes[cur].left;
-      } else {
-        if (this.nodes[cur].right === NIL) return cur;
-        cur = this.nodes[cur].right;
+      const curNode = this.nodes.get(cur);
+      if (!curNode) return NIL;
+      if (curNode.left === NIL) return cur;
+      cur = curNode.left;
+    }
+  }
+
+  private rotateLeft(x: bigint): void {
+    const xNode = this.nodes.get(x);
+    if (!xNode) return;
+    const y = xNode.right;
+    if (y === NIL) return;
+    const yNode = this.nodes.get(y);
+    if (!yNode) return;
+
+    xNode.right = yNode.left;
+    this.nodes.set(x, xNode);
+
+    yNode.left = x;
+    this.nodes.set(y, yNode);
+
+    const p = this.parentOf(x);
+    if (x === this.root) {
+      this.root = y;
+    } else {
+      const pNode = this.nodes.get(p);
+      if (pNode) {
+        if (pNode.left === x) {
+          pNode.left = y;
+        } else {
+          pNode.right = y;
+        }
+        this.nodes.set(p, pNode);
       }
     }
   }
 
-  private successor(id: number): number {
-    let r = this.nodes[id].right;
-    if (r === NIL) return NIL;
-    while (this.nodes[r].left !== NIL) {
-      r = this.nodes[r].left;
-    }
-    return r;
-  }
-
-  private rotLeft(x: number): void {
-    const n = this.nodes;
-    const y = n[x].right;
+  private rotateRight(x: bigint): void {
+    const xNode = this.nodes.get(x);
+    if (!xNode) return;
+    const y = xNode.left;
     if (y === NIL) return;
+    const yNode = this.nodes.get(y);
+    if (!yNode) return;
+
+    xNode.left = yNode.right;
+    this.nodes.set(x, xNode);
+
+    yNode.right = x;
+    this.nodes.set(y, yNode);
+
     const p = this.parentOf(x);
-
-    n[x].right = n[y].left;
-    n[y].left = x;
-
-    if (p === NIL) {
-      this.root_ = y;
-    } else if (n[p].left === x) {
-      n[p].left = y;
+    if (x === this.root) {
+      this.root = y;
     } else {
-      n[p].right = y;
+      const pNode = this.nodes.get(p);
+      if (pNode) {
+        if (pNode.left === x) {
+          pNode.left = y;
+        } else {
+          pNode.right = y;
+        }
+        this.nodes.set(p, pNode);
+      }
     }
   }
 
-  private rotRight(x: number): void {
-    const n = this.nodes;
-    const y = n[x].left;
-    if (y === NIL) return;
-    const p = this.parentOf(x);
-
-    n[x].left = n[y].right;
-    n[y].right = x;
-
-    if (p === NIL) {
-      this.root_ = y;
-    } else if (n[p].left === x) {
-      n[p].left = y;
-    } else {
-      n[p].right = y;
+  private recolor(id: bigint, color: "R" | "B"): void {
+    const node = this.nodes.get(id);
+    if (node) {
+      node.color = color;
+      this.nodes.set(id, node);
     }
   }
 
-  private fixInsert(z: number): void {
-    while (true) {
+  private recomputeBH(): void {
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0n; i <= MAX_ID; i++) {
+        const node = this.nodes.get(i);
+        if (!node || i === NIL || node.key === 0n) continue;
+        const leftNode = this.nodes.get(node.left);
+        const leftBh = leftNode ? leftNode.bh : 0n;
+        node.bh = leftBh + (node.color === "B" ? 1n : 0n);
+        this.nodes.set(i, node);
+      }
+    }
+  }
+
+  private insertFixup(z: bigint): void {
+    for (let iter = 0; iter < 5; iter++) {
       const par = this.parentOf(z);
-      if (par === NIL || this.nodes[par].color === "B") break;
+      if (par === NIL) break;
+      const parNode = this.nodes.get(par);
+      if (!parNode || parNode.color === "B") break;
+
       const gp = this.parentOf(par);
       if (gp === NIL) break;
+      const gpNode = this.nodes.get(gp);
+      if (!gpNode) break;
 
-      const pLeft = this.nodes[gp].left === par;
-      const uncle = pLeft ? this.nodes[gp].right : this.nodes[gp].left;
-      const uRed = uncle !== NIL && this.nodes[uncle].color === "R";
+      const pLeft = gpNode.left === par;
+      const uncle = pLeft ? gpNode.right : gpNode.left;
+      const uncleNode = this.nodes.get(uncle);
+      const uRed = uncle !== NIL && uncleNode !== undefined && uncleNode.color === "R";
 
       if (uRed) {
-        this.nodes[par].color = "B";
-        this.nodes[uncle].color = "B";
-        this.nodes[gp].color = "R";
+        this.recolor(par, "B");
+        this.recolor(uncle, "B");
+        this.recolor(gp, "R");
         z = gp;
         continue;
       }
 
       if (pLeft) {
-        if (z === this.nodes[par].right) {
-          this.rotLeft(par);
+        const parNode2 = this.nodes.get(par)!;
+        if (z === parNode2.right) {
+          this.rotateLeft(par);
           z = par;
-          continue;
         }
-        this.nodes[par].color = "B";
-        this.nodes[gp].color = "R";
-        this.rotRight(gp);
+        const par2 = this.parentOf(z);
+        const gp2 = this.parentOf(par2);
+        this.recolor(par2, "B");
+        this.recolor(gp2, "R");
+        this.rotateRight(gp2);
+        break;
       } else {
-        if (z === this.nodes[par].left) {
-          this.rotRight(par);
+        const parNode2 = this.nodes.get(par)!;
+        if (z === parNode2.left) {
+          this.rotateRight(par);
           z = par;
-          continue;
         }
-        this.nodes[par].color = "B";
-        this.nodes[gp].color = "R";
-        this.rotLeft(gp);
+        const par2 = this.parentOf(z);
+        const gp2 = this.parentOf(par2);
+        this.recolor(par2, "B");
+        this.recolor(gp2, "R");
+        this.rotateLeft(gp2);
+        break;
       }
-      break;
     }
   }
 
-  private insert(key: number): void {
-    if (this.bstFind(key) !== NIL) return;
+  private insert(key: bigint): void {
+    const existing = this.bstFind(key);
+    if (existing !== NIL) return;
 
     const newId = this.findUnused();
+    if (newId === NIL) return;
 
-    this.nodes[newId] = {
-      key,
-      color: "R",
-      left: NIL,
-      right: NIL,
-      bh: 0,
-    };
+    const newNode: RbtNode = { key, color: "R", left: NIL, right: NIL, bh: 0n };
+    this.nodes.set(newId, newNode);
 
-    const parent = this.bstParent(key);
-    if (parent === NIL) {
-      this.root_ = newId;
-    } else if (key < this.nodes[parent].key) {
-      this.nodes[parent].left = newId;
+    if (this.root === NIL) {
+      this.root = newId;
     } else {
-      this.nodes[parent].right = newId;
+      let cur = this.root;
+      while (true) {
+        const curNode = this.nodes.get(cur);
+        if (!curNode) break;
+        if (key < curNode.key) {
+          if (curNode.left === NIL) {
+            curNode.left = newId;
+            this.nodes.set(cur, curNode);
+            break;
+          }
+          cur = curNode.left;
+        } else {
+          if (curNode.right === NIL) {
+            curNode.right = newId;
+            this.nodes.set(cur, curNode);
+            break;
+          }
+          cur = curNode.right;
+        }
+      }
     }
 
-    this.fixInsert(newId);
-    if (this.root_ !== NIL) {
-      this.nodes[this.root_].color = "B";
-    }
+    this.insertFixup(newId);
+    this.recolor(this.root, "B");
+    this.stepCount += 1n;
     this.recomputeBH();
   }
 
-  private fixDelete(x: number, px: number | null, xIsLeft: boolean | null): void {
-    while (true) {
-      let par: number;
-      let isLeft: boolean;
-
-      if (px !== null) {
-        par = px;
-        isLeft = xIsLeft!;
-      } else {
-        par = this.parentOf(x);
-        isLeft = par !== NIL && this.nodes[par].left === x;
+  private deleteFixup(x: bigint, px: bigint, xLeft: boolean): void {
+    for (let iter = 0; iter < 5; iter++) {
+      let par = px !== NIL ? px : this.parentOf(x);
+      let isLeft = px !== NIL ? xLeft : false;
+      if (px === NIL) {
+        const parNode = this.nodes.get(par);
+        isLeft = parNode !== undefined && parNode.left === x;
       }
 
-      const n = this.nodes;
-
-      if (x === this.root_ || (x !== NIL && n[x].color === "R")) {
-        if (x !== NIL) {
-          n[x].color = "B";
-        }
+      if (x === this.root) break;
+      const xNode = this.nodes.get(x);
+      if (x !== NIL && xNode && xNode.color === "R") {
+        this.recolor(x, "B");
         break;
       }
 
       if (par === NIL) break;
 
-      const w = isLeft ? n[par].right : n[par].left;
-      const wRed = w !== NIL && n[w].color === "R";
+      const parNode = this.nodes.get(par);
+      if (!parNode) break;
+
+      const w = isLeft ? parNode.right : parNode.left;
+      const wNode = this.nodes.get(w);
+      const wRed = w !== NIL && wNode !== undefined && wNode.color === "R";
 
       if (wRed) {
-        n[w].color = "B";
-        n[par].color = "R";
+        this.recolor(w, "B");
+        this.recolor(par, "R");
         if (isLeft) {
-          this.rotLeft(par);
+          this.rotateLeft(par);
         } else {
-          this.rotRight(par);
+          this.rotateRight(par);
         }
         px = par;
         continue;
       }
 
-      const wL = n[w].left;
-      const wR = n[w].right;
-      const wLB = wL === NIL || n[wL].color === "B";
-      const wRB = wR === NIL || n[wR].color === "B";
+      if (!wNode) break;
+      const wL = wNode.left;
+      const wR = wNode.right;
+      const wLNode = this.nodes.get(wL);
+      const wRNode = this.nodes.get(wR);
+      const wLB = wL === NIL || (wLNode ? wLNode.color === "B" : true);
+      const wRB = wR === NIL || (wRNode ? wRNode.color === "B" : true);
 
       if (wLB && wRB) {
-        n[w].color = "R";
+        this.recolor(w, "R");
         x = par;
-        px = null;
-        xIsLeft = null;
+        px = NIL;
         continue;
       }
 
       if (isLeft) {
-        if (wR !== NIL && n[wR].color === "R") {
-          n[w].color = n[par].color;
-          n[par].color = "B";
-          n[wR].color = "B";
-          this.rotLeft(par);
+        if (wR !== NIL && wRNode && wRNode.color === "R") {
+          this.recolor(w, parNode.color);
+          this.recolor(par, "B");
+          this.recolor(wR, "B");
+          this.rotateLeft(par);
           break;
         } else {
-          const nearC = wL;
-          n[nearC].color = "B";
-          n[w].color = "R";
-          this.rotRight(w);
-          const w2 = n[par].right;
-          const w2R = n[w2].right;
-          n[w2].color = n[par].color;
-          n[par].color = "B";
-          n[w2R].color = "B";
-          this.rotLeft(par);
+          this.recolor(wL, "B");
+          this.recolor(w, "R");
+          this.rotateRight(w);
+          const parNode2 = this.nodes.get(par)!;
+          const w2 = parNode2.right;
+          const w2Node = this.nodes.get(w2);
+          const w2R = w2Node ? w2Node.right : NIL;
+          this.recolor(w2, parNode2.color);
+          this.recolor(par, "B");
+          this.recolor(w2R, "B");
+          this.rotateLeft(par);
           break;
         }
       } else {
-        if (wL !== NIL && n[wL].color === "R") {
-          n[w].color = n[par].color;
-          n[par].color = "B";
-          n[wL].color = "B";
-          this.rotRight(par);
+        if (wL !== NIL && wLNode && wLNode.color === "R") {
+          this.recolor(w, parNode.color);
+          this.recolor(par, "B");
+          this.recolor(wL, "B");
+          this.rotateRight(par);
           break;
         } else {
-          const nearC = wR;
-          n[nearC].color = "B";
-          n[w].color = "R";
-          this.rotLeft(w);
-          const w2 = n[par].left;
-          const w2L = n[w2].left;
-          n[w2].color = n[par].color;
-          n[par].color = "B";
-          n[w2L].color = "B";
-          this.rotRight(par);
+          this.recolor(wR, "B");
+          this.recolor(w, "R");
+          this.rotateLeft(w);
+          const parNode2 = this.nodes.get(par)!;
+          const w2 = parNode2.left;
+          const w2Node = this.nodes.get(w2);
+          const w2L = w2Node ? w2Node.left : NIL;
+          this.recolor(w2, parNode2.color);
+          this.recolor(par, "B");
+          this.recolor(w2L, "B");
+          this.rotateRight(par);
           break;
         }
       }
     }
   }
 
-  private delete(key: number): void {
+  private delete(key: bigint): void {
     const z = this.bstFind(key);
     if (z === NIL) return;
 
-    const hasTwo = this.nodes[z].left !== NIL && this.nodes[z].right !== NIL;
-    let y: number;
+    const zNode = this.nodes.get(z);
+    if (!zNode) return;
 
-    if (hasTwo) {
-      y = this.successor(z);
-      this.nodes[z].key = this.nodes[y].key;
-    } else {
-      y = z;
+    const hasTwoChildren = zNode.left !== NIL && zNode.right !== NIL;
+    const y = hasTwoChildren ? this.successor(z) : z;
+
+    const yNode = this.nodes.get(y);
+    if (!yNode) return;
+
+    const x = yNode.left !== NIL ? yNode.left : yNode.right;
+    const yColor = hasTwoChildren ? yNode.color : zNode.color;
+
+    if (hasTwoChildren) {
+      zNode.key = yNode.key;
+      this.nodes.set(z, zNode);
     }
-
-    let x = this.nodes[y].left !== NIL ? this.nodes[y].left : this.nodes[y].right;
 
     const yOldParent = this.parentOf(y);
-    const yIsLeft = yOldParent !== NIL && this.nodes[yOldParent].left === y;
-    const yColor = this.nodes[y].color;
+    const yOldParentNode = yOldParent !== NIL ? this.nodes.get(yOldParent) : undefined;
+    const yIsLeft = yOldParentNode !== undefined && yOldParentNode.left === y;
 
     if (yOldParent === NIL) {
-      this.root_ = x;
+      // y was root — this shouldn't happen if z had a parent, but handle it
     } else if (yIsLeft) {
-      this.nodes[yOldParent].left = x;
+      yOldParentNode!.left = x;
+      this.nodes.set(yOldParent, yOldParentNode!);
     } else {
-      this.nodes[yOldParent].right = x;
+      yOldParentNode!.right = x;
+      this.nodes.set(yOldParent, yOldParentNode!);
     }
 
-    this.nodes[y].key = 0;
+    yNode.key = 0n;
+    this.nodes.set(y, yNode);
+
+    if (y === this.root) {
+      this.root = x;
+    }
 
     if (yColor === "B") {
-      this.fixDelete(x, x === NIL ? yOldParent : null, x === NIL ? yIsLeft : null);
+      const fx = x;
+      const fxPx = x === NIL ? yOldParent : NIL;
+      const fxLeft = yIsLeft;
+      this.deleteFixup(fx, fxPx, fxLeft);
     }
 
-    if (this.root_ !== NIL) {
-      this.nodes[this.root_].color = "B";
-    }
+    this.recolor(this.root, "B");
+    this.stepCount += 1n;
     this.recomputeBH();
-  }
-
-  private recomputeBH(): void {
-    const seen = new Set<number>();
-    const stack: number[] = [this.root_];
-    while (stack.length > 0) {
-      const id = stack.pop()!;
-      if (id === NIL || seen.has(id)) continue;
-      seen.add(id);
-      const n = this.nodes[id];
-      stack.push(n.left, n.right);
-    }
-
-    for (let pass = 0; pass < 3; pass++) {
-      for (const id of seen) {
-        const n = this.nodes[id];
-        n.bh = this.nodes[n.left].bh +
-          (n.color === "B" ? 1 : 0);
-      }
-    }
-  }
-
-  step(action: string, params: State): void {
-    const rec = getParam(params, "parameters");
-    if (!rec) return;
-    const keyVal = asInt(rec.keyParam!);
-    if (keyVal === null) return;
-    const key = Number(keyVal);
-
-    if (action === "insert") {
-      if (this.bstFind(key) === NIL) {
-        this.insert(key);
-        this.stepCount++;
-      }
-    } else if (action === "delete") {
-      if (this.bstFind(key) !== NIL) {
-        this.delete(key);
-        this.stepCount++;
-      }
-    }
-  }
-
-  toState(): State {
-    const nodesRec: Record<string, Value> = {};
-    for (let id = 0; id < this.nodes.length; id++) {
-      const n = this.nodes[id];
-      nodesRec[String(id)] = {
-        tag: "record",
-        val: {
-          key: { tag: "int", val: BigInt(n.key) } as Value,
-          color: { tag: "str", val: n.color } as Value,
-          left: { tag: "int", val: BigInt(n.left) } as Value,
-          right: { tag: "int", val: BigInt(n.right) } as Value,
-          bh: { tag: "int", val: BigInt(n.bh) } as Value,
-        },
-      } as Value;
-    }
-
-    return {
-      nodes: { tag: "record", val: nodesRec } as Value,
-      root: { tag: "int", val: BigInt(this.root_) } as Value,
-      step_count: { tag: "int", val: BigInt(this.stepCount) } as Value,
-    };
   }
 }
